@@ -1,0 +1,16 @@
+/* Additional style: must be used sparingly */
+@import '@/node_modules/@rhinos-solutions/corn-nuxt/corn_style';
+@import '@/assets/css/config.scss';
+
+:root {
+  // Popper js Theme  
+--popper-theme-background-color: #{$corn_gris-700};
+--popper-theme-background-color-hover: #{$corn_gris-700};
+--popper-theme-text-color: #ffffff;
+--popper-theme-border-width: 0px;
+--popper-theme-border-color: #{$corn_primary-300};
+--popper-theme-border-style: solid;
+--popper-theme-border-radius: #{$corn_radius};
+--popper-theme-padding: 7px 10px;
+--popper-theme-box-shadow: #{$corn_shadow};
+}

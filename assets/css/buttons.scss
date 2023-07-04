@@ -1,0 +1,21 @@
+@import '@/node_modules/@rhinos-solutions/corn-nuxt/corn_style/functions';
+
+@mixin cornButtonColorAndShade($color, $shade) {
+  @include _cornButtonColorAndShade($color, $shade);
+
+  // example: outline: 5px dotted var(--corn-#{$color}-#{$shade});
+
+  &:disabled {}
+  &:hover:not(:disabled) {}
+  &:focus:not(:disabled) {}
+  &:active:not(:disabled) {}
+}
+
+@mixin cornButtonOutlineColorAndShade($color, $shade) {
+  @include _cornButtonOutlineColorAndShade($color, $shade);
+
+  &:disabled {}
+  &:hover:not(:disabled) {}
+  &:focus:not(:disabled) {}
+  &:active:not(:disabled) {}
+}

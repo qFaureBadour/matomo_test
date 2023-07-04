@@ -1,0 +1,131 @@
+#####################################################################
+# Circle CI deployment configuration for the "corn app demo"        #
+#####################################################################
+#
+####################################################################
+
+version: 2.1
+jobs:
+  # specify job name
+  build-test-deploy:
+    shell: /bin/bash -eo pipefail
+    circleci_ip_ranges: true
+    # Build the image to perform actions
+    # No need to have php but other dep needed.
+    docker:
+      - image: rhinos/node
+        auth:
+          username: $DOCKERHUB_USERNAME # can specify string literal values
+          password: $DOCKERHUB_PASSWORD # project environment variable reference
+    #`memoryLimit` option in the ForkTsCheckerWebpackPlugin
+    resource_class: large
+
+    # Tell circleCI to perform every "step" (which spawns a subshell everytime) to position itself in /var/www/project/ before performing any actions
+    working_directory: /var/www/project/
+
+    steps:
+      # Checkout the code from Git
+      - checkout
+
+      - run:
+          name: 'CI environment vars setup ( Laravel / DTC config ) '
+          command: |
+            . ./.circleci/scripts/ci_env_setup.sh
+
+      # #-------------- /NPM --------------
+      # Restore js deps from previous workflows if the npm lockfile didn't change #
+      - restore_cache:
+          key: package-{{ .Branch  }}/{{ checksum "package-lock.json" }}
+      # Install missing deps #
+      - run:
+          name: Install project dependencies NPM
+          command: |
+            echo "node -v: $(node -v)"
+            echo "npm -v: $(npm -v)"
+            npm install
+      # Save js deps for next workflows #
+      - save_cache:
+          key: package-{{ .Branch  }}/{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      # Compile frontend assets using webpack in a npm script (see package.json) #
+      - run:
+          name: build asset file
+          command: |
+            npm run generate
+            ls -la
+      #-------------- NPM\ --------------
+      #-------------- /BUNDLER --------------
+      # Set bundler path #
+      - run:
+          name: Setup bundler path
+          command: export BUNDLE_PATH=~/bundler >> $BASH_ENV
+      # Generate a per-week cache key #
+      - run:
+          name: Generate cache key
+          command: echo "$(date +"%Y-%V")" > .circle_week
+
+      # Restore ruby deps from previous build of the same week #
+      - restore_cache:
+          key: bundler-{{ .Branch }}/{{ checksum ".circle_week" }}
+
+      # Run bundle install only if deps are missing from the ~/bundler folder to prevent downloading packages everytime #
+      - run:
+          name: Install Ruby dependencies
+          command: bundle install &>/dev/null # ruby deps for capistrano #
+
+      # Save gem deps for next workflows #
+      - save_cache:
+          key: bundler-{{ .Branch }}/{{ checksum ".circle_week" }}
+          paths:
+            - ~/bundler
+      #-------------- BUNDLER\ --------------
+
+      # Run the capistrano config depending on branch and create a sentry release in the right environement
+      - run:
+          name: Deploy with capistrano
+          command: . .circleci/scripts/trigger_deploy.sh # trigger capistrano & sentry for the current git branch
+
+  # SECURITY ANALYSIS
+  static-security-analysis:
+    docker:
+      - image: rhinos/securityscanner
+        auth:
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD
+    environment:
+      SESSION_DRIVER: none
+      CACHE_DRIVER: none
+    steps:
+      - checkout
+      - run:
+          name: Python Security Analysis
+          command: |
+            python /etc/security_scanner_WHITEBOX/security.py
+      - store_artifacts:
+          path: /etc/security_scanner_WHITEBOX/reports/security_report.docx
+          destination: security_report.docx
+      - store_artifacts:
+          path: /etc/security_scanner_WHITEBOX/reports/dashboard.xlsx # Generate Dashboard
+          destination: dashboard.xlsx # Download Dashboard
+
+workflows:
+  version: 2
+  Build-Test-Deploy:
+    jobs:
+      - build-test-deploy:
+          context: 
+            - Rhinos_laravel_v2
+            - corn_nuxt
+          filters:
+            branches:
+              only:
+                - pre-release
+
+      #- static-security-analysis:
+      #    context: Rhinos_laravel_v2
+      #    filters:
+      #      branches:
+      #        only:
+      #          - master
+      #          - pre-release
